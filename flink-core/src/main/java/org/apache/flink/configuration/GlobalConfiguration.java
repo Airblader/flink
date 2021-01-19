@@ -21,6 +21,7 @@ package org.apache.flink.configuration;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.util.Preconditions;
 
+import org.apache.commons.lang3.text.StrSubstitutor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -195,7 +196,7 @@ public final class GlobalConfiguration {
                     }
 
                     String key = kv[0].trim();
-                    String value = kv[1].trim();
+                    String value = StrSubstitutor.replace(kv[1].trim(), System.getenv());
 
                     // sanity check
                     if (key.length() == 0 || value.length() == 0) {

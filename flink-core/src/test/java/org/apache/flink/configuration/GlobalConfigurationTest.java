@@ -70,6 +70,8 @@ public class GlobalConfigurationTest extends TestLogger {
                 pw.println("mykey9: myvalue9"); // OK
                 pw.println("mykey9: myvalue10"); // OK, overwrite last value
 
+                pw.println("mykey10: A${flinkEnvVar}B"); // OK, use environment variable
+
             } catch (FileNotFoundException e) {
                 e.printStackTrace();
             }
@@ -77,7 +79,7 @@ public class GlobalConfigurationTest extends TestLogger {
             Configuration conf = GlobalConfiguration.loadConfiguration(tmpDir.getAbsolutePath());
 
             // all distinct keys from confFile1 + confFile2 key
-            assertEquals(6, conf.keySet().size());
+            assertEquals(7, conf.keySet().size());
 
             // keys 1, 2, 4, 5, 6, 7, 8 should be OK and match the expected values
             assertEquals("myvalue1", conf.getString("mykey1", null));
@@ -89,6 +91,7 @@ public class GlobalConfigurationTest extends TestLogger {
             assertEquals("null", conf.getString("mykey7", "null"));
             assertEquals("null", conf.getString("mykey8", "null"));
             assertEquals("myvalue10", conf.getString("mykey9", null));
+            assertEquals("AEnvSubstValueB", conf.getString("mykey10", null));
         } finally {
             confFile.delete();
             tmpDir.delete();

@@ -1557,6 +1557,10 @@ under the License.
 						<execution.checkpointing.unaligned>true</execution.checkpointing.unaligned>
 						<project.basedir>${project.basedir}</project.basedir>
 					</systemPropertyVariables>
+					<environmentVariables>
+						<!-- Used for GlobalConfigurationTest -->
+						<flinkEnvVar>EnvSubstValue</flinkEnvVar>
+					</environmentVariables>
 					<argLine>-Xms256m -Xmx2048m -Dmvn.forkNumber=${surefire.forkNumber} -XX:+UseG1GC</argLine>
 				</configuration>
 				<executions>
