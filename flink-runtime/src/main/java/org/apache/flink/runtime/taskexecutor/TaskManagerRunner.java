@@ -33,6 +33,7 @@ import org.apache.flink.core.security.FlinkSecurityManager;
 import org.apache.flink.metrics.MetricGroup;
 import org.apache.flink.runtime.blob.BlobCacheService;
 import org.apache.flink.runtime.clusterframework.types.ResourceID;
+import org.apache.flink.runtime.entrypoint.ClusterEntrypointUtils;
 import org.apache.flink.runtime.entrypoint.FlinkParseException;
 import org.apache.flink.runtime.externalresource.ExternalResourceInfoProvider;
 import org.apache.flink.runtime.externalresource.ExternalResourceUtils;
@@ -56,6 +57,7 @@ import org.apache.flink.runtime.rpc.RpcSystemUtils;
 import org.apache.flink.runtime.rpc.RpcUtils;
 import org.apache.flink.runtime.security.SecurityConfiguration;
 import org.apache.flink.runtime.security.SecurityUtils;
+import org.apache.flink.runtime.state.changelog.StateChangelogStorageLoader;
 import org.apache.flink.runtime.taskmanager.MemoryLogger;
 import org.apache.flink.runtime.util.ConfigurationParserUtils;
 import org.apache.flink.runtime.util.EnvironmentInformation;
@@ -411,9 +413,12 @@ public class TaskManagerRunner implements FatalErrorHandler {
                 PluginUtils.createPluginManagerFromRootFolder(configuration);
         FileSystem.initialize(configuration, pluginManager);
 
+        StateChangelogStorageLoader.initialize(pluginManager);
+
         int exitCode;
         Throwable throwable = null;
 
+        ClusterEntrypointUtils.configureUncaughtExceptionHandler(configuration);
         try {
             SecurityUtils.install(new SecurityConfiguration(configuration));
 

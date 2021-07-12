@@ -26,6 +26,7 @@ import org.apache.flink.runtime.rpc.RpcGateway;
 import org.apache.flink.runtime.rpc.RpcServer;
 import org.apache.flink.runtime.rpc.RpcTimeout;
 import org.apache.flink.runtime.rpc.StartStoppable;
+import org.apache.flink.runtime.rpc.exceptions.RecipientUnreachableException;
 import org.apache.flink.runtime.rpc.exceptions.RpcException;
 import org.apache.flink.runtime.rpc.messages.CallAsync;
 import org.apache.flink.runtime.rpc.messages.LocalRpcInvocation;
@@ -196,7 +197,9 @@ class AkkaInvocationHandler implements InvocationHandler, AkkaBasedEndpoint, Rpc
      *
      * @param method to call
      * @param args of the method call
-     * @return result of the RPC
+     * @return result of the RPC; the result future is completed with a {@link TimeoutException} if
+     *     the requests times out; if the recipient is not reachable, then the result future is
+     *     completed with a {@link RecipientUnreachableException}.
      * @throws Exception if the RPC invocation fails
      */
     private Object invokeRpc(Method method, Object[] args) throws Exception {
@@ -206,7 +209,11 @@ class AkkaInvocationHandler implements InvocationHandler, AkkaBasedEndpoint, Rpc
         Time futureTimeout = extractRpcTimeout(parameterAnnotations, args, timeout);
 
         final RpcInvocation rpcInvocation =
-                createRpcInvocationMessage(methodName, parameterTypes, args);
+                createRpcInvocationMessage(
+                        method.getDeclaringClass().getSimpleName(),
+                        methodName,
+                        parameterTypes,
+                        args);
 
         Class<?> returnType = method.getReturnType();
 
@@ -232,7 +239,8 @@ class AkkaInvocationHandler implements InvocationHandler, AkkaBasedEndpoint, Rpc
                     (resultValue, failure) -> {
                         if (failure != null) {
                             completableFuture.completeExceptionally(
-                                    resolveTimeoutException(failure, callStackCapture, method));
+                                    resolveTimeoutException(
+                                            failure, callStackCapture, address, rpcInvocation));
                         } else {
                             completableFuture.complete(
                                     deserializeValueIfNeeded(resultValue, method));
@@ -259,6 +267,7 @@ class AkkaInvocationHandler implements InvocationHandler, AkkaBasedEndpoint, Rpc
     /**
      * Create the RpcInvocation message for the given RPC.
      *
+     * @param declaringClassName of the RPC
      * @param methodName of the RPC
      * @param parameterTypes of the RPC
      * @param args of the RPC
@@ -266,16 +275,21 @@ class AkkaInvocationHandler implements InvocationHandler, AkkaBasedEndpoint, Rpc
      * @throws IOException if we cannot serialize the RPC invocation parameters
      */
     protected RpcInvocation createRpcInvocationMessage(
-            final String methodName, final Class<?>[] parameterTypes, final Object[] args)
+            final String declaringClassName,
+            final String methodName,
+            final Class<?>[] parameterTypes,
+            final Object[] args)
             throws IOException {
         final RpcInvocation rpcInvocation;
 
         if (isLocal) {
-            rpcInvocation = new LocalRpcInvocation(methodName, parameterTypes, args);
+            rpcInvocation =
+                    new LocalRpcInvocation(declaringClassName, methodName, parameterTypes, args);
         } else {
             try {
                 RemoteRpcInvocation remoteRpcInvocation =
-                        new RemoteRpcInvocation(methodName, parameterTypes, args);
+                        new RemoteRpcInvocation(
+                                declaringClassName, methodName, parameterTypes, args);
 
                 if (remoteRpcInvocation.getSize() > maximumFramesize) {
                     throw new IOException(
@@ -405,13 +419,28 @@ class AkkaInvocationHandler implements InvocationHandler, AkkaBasedEndpoint, Rpc
     }
 
     static Throwable resolveTimeoutException(
-            Throwable exception, @Nullable Throwable callStackCapture, Method method) {
+            Throwable exception,
+            @Nullable Throwable callStackCapture,
+            String recipient,
+            RpcInvocation rpcInvocation) {
         if (!(exception instanceof akka.pattern.AskTimeoutException)) {
             return exception;
         }
 
-        final TimeoutException newException =
-                new TimeoutException("Invocation of " + method + " timed out.");
+        final Exception newException;
+
+        if (AkkaRpcServiceUtils.isRecipientTerminatedException(exception)) {
+            newException =
+                    new RecipientUnreachableException(
+                            "unknown", recipient, rpcInvocation.toString());
+        } else {
+            newException =
+                    new TimeoutException(
+                            String.format(
+                                    "Invocation of [%s] at recipient [%s] timed out.",
+                                    rpcInvocation, recipient));
+        }
+
         newException.initCause(exception);
 
         if (callStackCapture != null) {
