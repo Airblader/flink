@@ -154,6 +154,26 @@ public final class ExternalSchemaTranslator {
             @Nullable Schema declaredSchema) {
         final DataType inputDataType =
                 TypeInfoDataTypeConverter.toDataType(dataTypeFactory, inputTypeInfo);
+        return fromExternal(dataTypeFactory, inputDataType, declaredSchema);
+    }
+
+    /**
+     * Converts the given {@link DataType} and an optional declared {@link Schema} (possibly
+     * incomplete) into the final {@link InputResult}.
+     *
+     * <p>This method serves three types of use cases:
+     *
+     * <ul>
+     *   <li>1. Derive physical columns from the input type information.
+     *   <li>2. Derive physical columns but merge them with declared computed columns and other
+     *       schema information.
+     *   <li>3. Derive and enrich physical columns and merge other schema information.
+     * </ul>
+     */
+    public static InputResult fromExternal(
+            DataTypeFactory dataTypeFactory,
+            DataType inputDataType,
+            @Nullable Schema declaredSchema) {
         final LogicalType inputType = inputDataType.getLogicalType();
 
         // we don't allow modifying the number of columns during enrichment, therefore we preserve

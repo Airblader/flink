@@ -1361,20 +1361,16 @@ class TableSinkITCase extends StreamingTestBase {
 
   @Test
   def testExecuteInsertToTableDescriptor(): Unit = {
-    val schema = Schema.newBuilder()
-      .column("f0", DataTypes.INT())
-      .build();
-
     val tableId = TestValuesTableFactory.registerData(Seq(row(42)))
     tEnv.createTemporaryTable("T", TableDescriptor.forConnector("values")
-      .schema(schema)
+      .schema(Schema.newBuilder()
+        .column("f0", DataTypes.INT())
+        .build())
       .option("data-id", tableId)
       .option("bounded", "true")
       .build())
 
-    val tableResult = tEnv.from("T").executeInsert(TableDescriptor.forConnector("values")
-      .schema(schema)
-      .build())
+    val tableResult = tEnv.from("T").executeInsert(TableDescriptor.forConnector("values").build())
 
     tableResult.await()
     assertEquals(Seq("+I(42)"), TestValuesTableFactory.getOnlyRawResults.toList)
